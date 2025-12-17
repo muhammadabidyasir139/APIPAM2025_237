@@ -3,7 +3,7 @@ const db = require("../config/db");
 // GET ALL VILLAS (Customer – hanya approved)
 exports.getAllVillas = (req, res) => {
   const query = `
-    SELECT v.*, GROUP_CONCAT(vp.fileName) AS photos
+    SELECT v.*, string_agg(vp.fileName, ',') AS photos
     FROM villas v
     LEFT JOIN villa_photos vp ON vp.villaId = v.id
     WHERE v.status = 'approved'
@@ -37,10 +37,10 @@ exports.getVillaById = (req, res) => {
   const { id } = req.params;
 
   const query = `
-    SELECT v.*, GROUP_CONCAT(vp.fileName) AS photos
+    SELECT v.*, string_agg(vp.fileName, ',') AS photos
     FROM villas v
     LEFT JOIN villa_photos vp ON vp.villaId = v.id
-    WHERE v.id = ?
+    WHERE v.id = $1
     GROUP BY v.id
   `;
 

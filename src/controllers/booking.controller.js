@@ -14,11 +14,11 @@ function countNights(checkIn, checkOut) {
 function checkAvailability(villaId, checkIn, checkOut) {
   return new Promise((resolve, reject) => {
     const query = `
-      SELECT * FROM bookings 
-      WHERE villaId = ? 
+      SELECT * FROM bookings
+      WHERE villaId = $1
       AND (
-        (checkIn <= ? AND checkOut >= ?) OR
-        (checkIn <= ? AND checkOut >= ?)
+        (checkIn <= $2 AND checkOut >= $3) OR
+        (checkIn <= $4 AND checkOut >= $5)
       )
     `;
 
@@ -27,7 +27,7 @@ function checkAvailability(villaId, checkIn, checkOut) {
       [villaId, checkIn, checkIn, checkOut, checkOut],
       (err, result) => {
         if (err) return reject(err);
-        resolve(result.length === 0); // true = available
+        resolve(result.rows.length === 0); // true = available
       }
     );
   });
@@ -52,13 +52,13 @@ exports.createBooking = async (req, res) => {
     }
 
     // 2. Ambil data villa & harga
-    const villaQuery = "SELECT * FROM villas WHERE id = ?";
+    const villaQuery = "SELECT * FROM villas WHERE id = $1";
     const villa = await new Promise((resolve, reject) => {
       db.query(villaQuery, [villaId], (err, result) => {
         if (err) return reject(err);
-        if (result.length === 0)
+        if (result.rows.length === 0)
           return reject(new Error("Villa tidak ditemukan"));
-        resolve(result[0]);
+        resolve(result.rows[0]);
       });
     });
 
@@ -76,7 +76,8 @@ exports.createBooking = async (req, res) => {
     // 4. Insert booking dengan status waiting_payment
     const insertBookingQuery = `
       INSERT INTO bookings (userId, villaId, checkIn, checkOut, status, totalAmount)
-      VALUES (?, ?, ?, ?, 'waiting_payment', ?)
+      VALUES ($1, $2, $3, $4, 'waiting_payment', $5)
+      RETURNING id
     `;
 
     const bookingId = await new Promise((resolve, reject) => {
@@ -85,7 +86,7 @@ exports.createBooking = async (req, res) => {
         [userId, villaId, checkIn, checkOut, totalAmount],
         (err, result) => {
           if (err) return reject(err);
-          resolve(result.insertId);
+          resolve(result.rows[0].id);
         }
       );
     });
@@ -94,13 +95,13 @@ exports.createBooking = async (req, res) => {
     const orderId = `BOOK-${bookingId}-${Date.now()}`;
 
     // 6. Ambil data user untuk customer_details
-    const userQuery = "SELECT name, email FROM users WHERE id = ?";
+    const userQuery = "SELECT name, email FROM users WHERE id = $1";
     const user = await new Promise((resolve, reject) => {
       db.query(userQuery, [userId], (err, result) => {
         if (err) return reject(err);
-        if (result.length === 0)
+        if (result.rows.length === 0)
           return reject(new Error("User tidak ditemukan"));
-        resolve(result[0]);
+        resolve(result.rows[0]);
       });
     });
 
@@ -133,7 +134,7 @@ exports.createBooking = async (req, res) => {
     // 9. Simpan record payment (status awal pending)
     const insertPaymentQuery = `
       INSERT INTO payments (bookingId, orderId, grossAmount, transactionStatus)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
     `;
 
     await new Promise((resolve, reject) => {
@@ -171,10 +172,10 @@ exports.getMyBookings = (req, res) => {
   const userId = req.user.id;
 
   const query = `
-    SELECT bookings.*, villas.name AS villaName, villas.location 
+    SELECT bookings.*, villas.name AS villaName, villas.location
     FROM bookings
     JOIN villas ON villas.id = bookings.villaId
-    WHERE bookings.userId = ?
+    WHERE bookings.userId = $1
     ORDER BY bookings.id DESC
   `;
 
@@ -184,6 +185,6 @@ exports.getMyBookings = (req, res) => {
       return res.status(500).json({ message: "Gagal mengambil data booking" });
     }
 
-    return res.json(result);
+    return res.json(result.rows);
   });
 };

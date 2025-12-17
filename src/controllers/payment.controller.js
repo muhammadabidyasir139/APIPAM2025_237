@@ -30,12 +30,12 @@ exports.midtransNotification = (req, res) => {
   // 2. Update tabel payments
   const updatePaymentQuery = `
     UPDATE payments
-    SET transactionId = ?,
-        paymentType = ?,
-        transactionStatus = ?,
-        transactionTime = ?,
-        rawResponse = ?
-    WHERE orderId = ?
+    SET transactionId = $1,
+        paymentType = $2,
+        transactionStatus = $3,
+        transactionTime = $4,
+        rawResponse = $5
+    WHERE orderId = $6
   `;
 
   db.query(
@@ -87,7 +87,7 @@ exports.midtransNotification = (req, res) => {
       newStatus = "cancelled";
     }
 
-    const updateBookingQuery = "UPDATE bookings SET status = ? WHERE id = ?";
+    const updateBookingQuery = "UPDATE bookings SET status = $1 WHERE id = $2";
 
     db.query(updateBookingQuery, [newStatus, bookingId], (err2) => {
       if (err2) {

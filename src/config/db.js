@@ -1,19 +1,24 @@
-const mysql = require("mysql2");
+const { Pool } = require("pg");
 
-const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+const db = new Pool({
+  connectionString:
+    process.env.DATABASE_URL ||
+    `postgresql://${process.env.DB_USER}:${process.env.DB_PASS}@${
+      process.env.DB_HOST
+    }:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`,
+  ssl:
+    process.env.NODE_ENV === "production"
+      ? { rejectUnauthorized: false }
+      : false,
 });
 
-db.getConnection((err, connection) => {
+db.connect((err, client, release) => {
   if (err) {
     console.error("Database connection failed:", err);
     return;
   }
-  console.log("Connected to MySQL Database");
-  connection.release();
+  console.log("Connected to PostgreSQL Database");
+  release();
 });
 
 module.exports = db;

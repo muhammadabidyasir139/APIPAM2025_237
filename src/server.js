@@ -13,11 +13,15 @@ app.get("/", (req, res) => {
   res.send("Villa Booking API Running...");
 });
 
+app.use("/uploads", express.static("uploads"));
 app.use("/api/v1/owner", require("./routes/owner.routes"));
 app.use("/api/v1/villas", require("./routes/villa.routes"));
 app.use("/api/v1/bookings", require("./routes/booking.routes"));
 app.use("/api/v1/admin", require("./routes/admin.routes"));
 
-app.listen(process.env.PORT, () => {
-  console.log("Server running on port " + process.env.PORT);
+app.use("/api/v1/payments", require("./routes/payment.route"));
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });

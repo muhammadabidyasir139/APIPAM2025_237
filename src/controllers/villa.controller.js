@@ -17,7 +17,7 @@ exports.getAllVillas = (req, res) => {
       return res.status(500).json({ message: "Gagal mengambil data villa" });
     }
 
-    const data = result.map((row) => {
+    const data = result.rows.map((row) => {
       let photos = [];
       if (row.photos) {
         photos = row.photos.split(",").map((file) => `/uploads/${file}`);
@@ -50,11 +50,11 @@ exports.getVillaById = (req, res) => {
       return res.status(500).json({ message: "Gagal mengambil detail villa" });
     }
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Villa tidak ditemukan" });
     }
 
-    const row = result[0];
+    const row = result.rows[0];
     let photos = [];
     if (row.photos) {
       photos = row.photos.split(",").map((file) => `/uploads/${file}`);

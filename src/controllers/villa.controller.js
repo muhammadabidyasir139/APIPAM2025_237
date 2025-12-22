@@ -60,7 +60,7 @@ exports.getAllVillas = (req, res) => {
     const data = result.rows.map((row) => {
       let photos = [];
       if (row.photos) {
-        photos = row.photos.split(",").map((file) => `/uploads/${file}`);
+        photos = row.photos.split(",");
       }
       return {
         ...row,
@@ -97,7 +97,7 @@ exports.getVillaById = (req, res) => {
     const row = result.rows[0];
     let photos = [];
     if (row.photos) {
-      photos = row.photos.split(",").map((file) => `/uploads/${file}`);
+      photos = row.photos.split(",");
     }
 
     res.json({

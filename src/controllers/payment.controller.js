@@ -57,7 +57,7 @@ exports.midtransNotification = (req, res) => {
   );
 
   // 3. Dapatkan bookingId dari tabel payments
-  const getPaymentQuery = "SELECT bookingId FROM payments WHERE orderId = ?";
+  const getPaymentQuery = "SELECT bookingId FROM payments WHERE orderId = $1";
 
   db.query(getPaymentQuery, [order_id], (err, result) => {
     if (err) {

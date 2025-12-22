@@ -2,3 +2,6 @@
 - [x] Update SQL query to include WHERE conditions for name and location if provided
 - [x] Use ILIKE for case-insensitive partial matching
 - [x] Test the endpoint with query parameters
+- [x] Fix Vercel FUNCTION_INVOCATION_TIMEOUT error
+- [x] Modify src/server.js to export app for serverless deployment
+- [x] Update src/controllers/auth.controller.js to use async bcrypt functions

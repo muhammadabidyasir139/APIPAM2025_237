@@ -1,0 +1,24 @@
+const express = require("express");
+const router = express.Router();
+const verifyJWT = require("../middlewares/auth");
+const upload = require("../middlewares/upload");
+
+const {
+  getProfile,
+  updateProfile,
+  changePassword,
+  addToWishlist,
+  removeFromWishlist,
+  getWishlist,
+} = require("../controllers/user.controller");
+
+// Get user profile
+router.get("/profile", verifyJWT, getProfile);
+
+// Update user profile (name, email, phone, photo)
+router.put("/profile", verifyJWT, upload.single("photo"), updateProfile);
+
+// Change password
+router.put("/change-password", verifyJWT, changePassword);
+
+module.exports = router;

@@ -9,6 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/user", require("./routes/user.routes"));
 app.get("/", (req, res) => {
   res.send("Villa Booking API Running...");
 });
@@ -21,7 +22,4 @@ app.use("/api/v1/admin", require("./routes/admin.routes"));
 
 app.use("/api/v1/payments", require("./routes/payment.route"));
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+module.exports = app;

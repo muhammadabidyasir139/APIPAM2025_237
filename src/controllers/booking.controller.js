@@ -133,14 +133,14 @@ exports.createBooking = async (req, res) => {
 
     // 9. Simpan record payment (status awal pending)
     const insertPaymentQuery = `
-      INSERT INTO payments (bookingId, orderId, grossAmount, transactionStatus, redirectUrl)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO payments (bookingId, orderId, grossAmount, transactionStatus)
+      VALUES ($1, $2, $3, $4)
     `;
 
     await new Promise((resolve, reject) => {
       db.query(
         insertPaymentQuery,
-        [bookingId, orderId, totalAmount, "pending", redirectUrl],
+        [bookingId, orderId, totalAmount, "pending"],
         (err) => {
           if (err) return reject(err);
           resolve();

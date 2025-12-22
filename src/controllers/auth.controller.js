@@ -12,7 +12,11 @@ exports.register = (req, res) => {
 
   // Cek email sudah terdaftar
   db.query("SELECT * FROM users WHERE email = $1", [email], (err, result) => {
-    if (result.length > 0) {
+    if (err) {
+      console.log(err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (result.rows.length > 0) {
       return res.status(400).json({ message: "Email sudah terdaftar" });
     }
 
@@ -45,12 +49,16 @@ exports.register = (req, res) => {
 exports.login = (req, res) => {
   const { email, password } = req.body;
 
-  db.query("SELECT * FROM users WHERE email = $1", [email], (err, users) => {
-    if (users.length === 0) {
+  db.query("SELECT * FROM users WHERE email = $1", [email], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (result.rows.length === 0) {
       return res.status(400).json({ message: "Email tidak ditemukan" });
     }
 
-    const user = users[0];
+    const user = result.rows[0];
 
     // Cek password
     const passwordMatch = bcrypt.compareSync(password, user.password);

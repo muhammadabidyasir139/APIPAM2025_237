@@ -172,10 +172,9 @@ exports.getMyBookings = (req, res) => {
   const userId = req.user.id;
 
   const query = `
-    SELECT bookings.*, villas.name AS villaName, villas.location, payments.redirectUrl AS directUrl
+    SELECT bookings.*, villas.name AS villaName, villas.location
     FROM bookings
     JOIN villas ON villas.id = bookings.villaId
-    LEFT JOIN payments ON payments.bookingId = bookings.id
     WHERE bookings.userId = $1
     ORDER BY bookings.id DESC
   `;

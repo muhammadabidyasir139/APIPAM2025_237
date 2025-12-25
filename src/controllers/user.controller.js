@@ -155,3 +155,38 @@ exports.changePassword = (req, res) => {
     }
   );
 };
+
+// Get transaction history
+exports.getTransactionHistory = (req, res) => {
+  const userId = req.user.id;
+
+  const query = `
+    SELECT
+      payments.orderId,
+      payments.transactionId,
+      payments.paymentType,
+      payments.transactionStatus,
+      payments.transactionTime,
+      payments.grossAmount,
+      villas.name AS villaName
+    FROM payments
+    JOIN bookings ON payments.bookingId = bookings.id
+    JOIN villas ON bookings.villaId = villas.id
+    WHERE bookings.userId = $1
+    ORDER BY payments.transactionTime DESC
+  `;
+
+  db.query(query, [userId], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ message: "Gagal mengambil riwayat transaksi" });
+    }
+
+    return res.json({
+      message: "Riwayat transaksi berhasil diambil",
+      transactions: result.rows,
+    });
+  });
+};

@@ -21,4 +21,7 @@ router.put("/profile", verifyJWT, upload.single("photo"), updateProfile);
 // Change password
 router.put("/change-password", verifyJWT, changePassword);
 
+// Get transaction history
+router.get("/transactions", verifyJWT, getTransactionHistory);
+
 module.exports = router;

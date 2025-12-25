@@ -1,7 +1,7 @@
 const db = require("../config/db");
 
 // CREATE VILLA (dengan multiple foto)
-exports.addVilla = (req, res) => {
+exports.addVilla = async (req, res) => {
   const { name, location, price, description } = req.body;
   const ownerId = req.user.id;
   const files = req.files || []; // array file
@@ -10,53 +10,61 @@ exports.addVilla = (req, res) => {
     return res.status(400).json({ message: "Data villa tidak lengkap" });
   }
 
-  const villaQuery = `
-    INSERT INTO villas (ownerId, name, location, price, description, status)
-    VALUES (?, ?, ?, ?, ?, 'pending')
-  `;
+  try {
+    const villaQuery = `
+      INSERT INTO villas (ownerId, name, location, price, description, status)
+      VALUES ($1, $2, $3, $4, $5, 'pending')
+      RETURNING id
+    `;
 
-  db.query(
-    villaQuery,
-    [ownerId, name, location, price, description],
-    (err, result) => {
-      if (err) {
-        console.log(err);
-        return res.status(500).json({ message: "Gagal menambahkan villa" });
-      }
-
-      const villaId = result.insertId;
-
-      if (files.length === 0) {
-        return res.status(201).json({
-          message: "Villa berhasil diajukan (tanpa foto)",
-          villaId,
-          photos: [],
-        });
-      }
-
-      // simpan semua foto ke tabel villa_photos
-      const photoValues = files.map((file) => [villaId, file.filename]);
-      const photoQuery =
-        "INSERT INTO villa_photos (villaId, fileName) VALUES ?";
-
-      db.query(photoQuery, [photoValues], (err2) => {
-        if (err2) {
-          console.log(err2);
-          return res.status(500).json({
-            message: "Villa tersimpan tetapi gagal menyimpan foto",
-          });
+    const villaResult = await new Promise((resolve, reject) => {
+      db.query(
+        villaQuery,
+        [ownerId, name, location, price, description],
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
         }
+      );
+    });
 
-        const photoUrls = files.map((f) => `/uploads/${f.filename}`);
+    const villaId = villaResult.rows[0].id;
 
-        res.status(201).json({
-          message: "Villa berhasil diajukan",
-          villaId,
-          photos: photoUrls,
-        });
+    if (files.length === 0) {
+      return res.status(201).json({
+        message: "Villa berhasil diajukan (tanpa foto)",
+        villaId,
+        photos: [],
       });
     }
-  );
+
+    // simpan semua foto ke tabel villa_photos
+    const photoPromises = files.map((file) => {
+      return new Promise((resolve, reject) => {
+        db.query(
+          "INSERT INTO villa_photos (villaId, fileName) VALUES ($1, $2)",
+          [villaId, file.filename],
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+    });
+
+    await Promise.all(photoPromises);
+
+    const photoUrls = files.map((f) => `/uploads/${f.filename}`);
+
+    res.status(201).json({
+      message: "Villa berhasil diajukan",
+      villaId,
+      photos: photoUrls,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: "Gagal menambahkan villa" });
+  }
 };
 
 // GET OWNER VILLAS

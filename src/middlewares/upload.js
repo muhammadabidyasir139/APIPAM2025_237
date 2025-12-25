@@ -1,9 +1,15 @@
 const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 // lokasi simpan file
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // pastikan folder ini ada
+    const uploadPath = "uploads/";
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath); // pastikan folder ini ada
   },
   filename: (req, file, cb) => {
     const uniqueName =

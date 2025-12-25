@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const verifyJWT = require("../middlewares/auth");
 const verifyOwner = require("../middlewares/owner");
+const verifyCustomer = require("../middlewares/customer");
 const upload = require("../middlewares/upload");
 
 const {
@@ -12,17 +13,17 @@ const {
   getOwnerBookings,
 } = require("../controllers/owner.controller");
 
-// Owner dapat CRUD hanya jika status pending/rejected
+// Villas CRUD for customers
 router.post(
   "/villas",
   verifyJWT,
-  verifyOwner,
+  verifyCustomer,
   upload.array("photos", 10), // max 10 file per request, bisa kamu naikkan
   addVilla
 );
-router.get("/villas", verifyJWT, verifyOwner, getOwnerVillas);
-router.put("/villas/:id", verifyJWT, verifyOwner, updateVilla);
-router.delete("/villas/:id", verifyJWT, verifyOwner, deleteVilla);
+router.get("/villas", verifyJWT, verifyCustomer, getOwnerVillas);
+router.put("/villas/:id", verifyJWT, verifyCustomer, updateVilla);
+router.delete("/villas/:id", verifyJWT, verifyCustomer, deleteVilla);
 router.get("/bookings", verifyJWT, verifyOwner, getOwnerBookings);
 
 module.exports = router;

@@ -12,12 +12,16 @@ AWS.config.update({
 
 let endpoint = process.env.AWS_S3_ENDPOINT || "https://is3.cloudhost.id";
 
-// Sanitize endpoint provided by environment variable
+// Strips any protocol prefix and forces https://, handles quotes/spaces
 if (endpoint) {
+  // Remove quotes and whitespace
   endpoint = endpoint.replace(/['"\s]+/g, '');
-  if (!endpoint.startsWith('http')) {
-    endpoint = `https://${endpoint}`;
-  }
+
+  // Remove existing protocol (http://, https://, ttps://, etc)
+  endpoint = endpoint.replace(/^[a-zA-Z]+:\/\//, '');
+
+  // Add https:// prefix
+  endpoint = `https://${endpoint}`;
 }
 
 console.log("S3 Config - Using endpoint:", endpoint);

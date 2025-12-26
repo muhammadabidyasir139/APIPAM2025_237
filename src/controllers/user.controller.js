@@ -14,11 +14,11 @@ exports.getProfile = (req, res) => {
         return res.status(500).json({ message: "Gagal mengambil profil" });
       }
 
-      if (result.length === 0) {
+      if (result.rows.length === 0) {
         return res.status(404).json({ message: "User tidak ditemukan" });
       }
 
-      const user = result[0];
+      const user = result.rows[0];
       return res.json({
         message: "Profil berhasil diambil",
         user: {
@@ -58,7 +58,7 @@ exports.updateProfile = (req, res) => {
           return res.status(500).json({ message: "Gagal memverifikasi email" });
         }
 
-        if (result.length > 0) {
+        if (result.rows.length > 0) {
           return res.status(400).json({ message: "Email sudah digunakan" });
         }
 
@@ -145,11 +145,11 @@ exports.changePassword = (req, res) => {
         return res.status(500).json({ message: "Gagal mengambil data user" });
       }
 
-      if (result.length === 0) {
+      if (result.rows.length === 0) {
         return res.status(404).json({ message: "User tidak ditemukan" });
       }
 
-      const user = result[0];
+      const user = result.rows[0];
 
       // Verifikasi password saat ini
       const passwordMatch = bcrypt.compareSync(currentPassword, user.password);

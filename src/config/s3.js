@@ -35,6 +35,14 @@ const s3 = new AWS.S3({
   s3BucketEndpoint: false,
   s3ForcePathStyle: true,
   signatureVersion: "v4",
+  maxRetries: 3, // Retry failed requests up to 3 times
+  httpOptions: {
+    timeout: 30000, // 30 second timeout
+    connectTimeout: 5000 // 5 second connection timeout
+  },
+  retryDelayOptions: {
+    base: 300 // exponential backoff base 300ms
+  }
 });
 
 const bucketName = process.env.AWS_S3_BUCKET_NAME || "rumahistimewa";

@@ -1,19 +1,21 @@
 const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
+const multerS3 = require("multer-s3");
+const { s3, bucketName } = require("../config/s3");
 
-// lokasi simpan file (untuk serverless, gunakan /tmp)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = "/tmp/uploads";
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
+// Gunakan S3 storage untuk upload
+const storage = multerS3({
+  s3: s3,
+  bucket: bucketName,
+  acl: "public-read", // agar bisa diakses publik
+  metadata: (req, file, cb) => {
+    cb(null, { fieldName: file.fieldname });
   },
-  filename: (req, file, cb) => {
+  key: (req, file, cb) => {
     const uniqueName =
-      Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
+      "user-photos/" +
+      Date.now() +
+      "-" +
+      file.originalname.replace(/\s+/g, "_");
     cb(null, uniqueName);
   },
 });
@@ -31,7 +33,9 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  // optional: bisa tambah limit fileSize, dll
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
 });
 
 module.exports = upload;

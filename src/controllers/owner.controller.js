@@ -1,4 +1,10 @@
 const db = require("../config/db");
+const { s3, bucketName } = require("../config/s3");
+
+// Helper for S3 URL
+const getS3Url = (filename) => {
+  return `${s3.endpoint.href}${bucketName}/${filename}`;
+};
 
 // CREATE VILLA (dengan multiple foto)
 exports.addVilla = async (req, res) => {
@@ -45,9 +51,11 @@ exports.addVilla = async (req, res) => {
     // simpan semua foto ke tabel villa_photos
     const photoPromises = files.map((file) => {
       return new Promise((resolve, reject) => {
+        // Use file.key (S3) or fallback to filename if local
+        const key = file.key || file.filename;
         db.query(
           "INSERT INTO villa_photos (villaId, fileName) VALUES ($1, $2)",
-          [villaId, file.filename],
+          [villaId, key],
           (err) => {
             if (err) reject(err);
             else resolve();
@@ -58,7 +66,10 @@ exports.addVilla = async (req, res) => {
 
     await Promise.all(photoPromises);
 
-    const photoUrls = files.map((f) => `/uploads/${f.filename}`);
+    // Use file.location if available (S3), otherwise construct URL
+    const photoUrls = files.map((f) =>
+      f.location || getS3Url(f.key || f.filename)
+    );
 
     res.status(201).json({
       message: "Villa berhasil diajukan",
@@ -112,7 +123,7 @@ exports.getOwnerVillas = (req, res) => {
     const data = result.map((row) => {
       let photos = [];
       if (row.photos) {
-        photos = row.photos.split(",").map((file) => `/uploads/${file}`);
+        photos = row.photos.split(",").map((file) => getS3Url(file));
       }
       return {
         ...row,

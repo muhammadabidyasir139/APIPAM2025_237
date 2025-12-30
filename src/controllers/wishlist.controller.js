@@ -92,7 +92,7 @@ exports.getMyWishlist = (req, res) => {
     JOIN villas v ON wv.villaid = v.id
     LEFT JOIN villa_photos vp ON vp.villaId = v.id
     WHERE wv.userid = $1
-    GROUP BY v.id
+    GROUP BY v.id, wv.createdat
     ORDER BY wv.createdat DESC
   `;
 

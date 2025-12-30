@@ -1,7 +1,125 @@
 const db = require("../config/db");
 const snap = require("../config/midtrans");
+const { s3, bucketName } = require("../config/s3");
 
-// fungsi hitung jumlah malam (checkOut - checkIn)
+// Helper for S3 URL
+const getS3Url = (filename) => {
+  return `${s3.endpoint.href}${bucketName}/${filename}`;
+};
+
+// ... (keep countNights and checkAvailability specific code if re-writing file, but I will use replace_file_content for just the needed parts if possible.
+// Wait, REPLACE_FILE_CONTENT replaces a block. I need to make sure I don't lose the top imports if I don't select them.
+// I'll start the replacement at line 1 to add the import.
+
+// ... createBooking ...
+
+// GET MY BOOKINGS
+exports.getMyBookings = (req, res) => {
+  const userId = req.user.id;
+
+  const query = `
+    SELECT
+      p.id AS payment_id,
+      p.bookingid,
+      p.orderid,
+      p.transactionid,
+      p.paymenttype,
+      p.grossamount,
+      p.transactionstatus,
+      p.transactiontime,
+      p.rawresponse,
+      p.createdat,
+      p.token,
+      p.redirecturl,
+
+      b.id AS booking_id,
+      b.userid,
+      b.villaid,
+      b.checkin,
+      b.checkout,
+      b.status AS booking_status,
+      b.totalamount AS booking_totalamount,
+      
+      v.name AS villa_name,
+      v.location AS villa_location,
+      (SELECT fileName FROM villa_photos vp WHERE vp.villaId = v.id LIMIT 1) AS villa_photo
+
+    FROM payments p
+    INNER JOIN bookings b ON p.bookingid = b.id
+    INNER JOIN villas v ON b.villaid = v.id
+    WHERE b.userid = $1
+    ORDER BY p.transactiontime DESC
+  `;
+
+  db.query(query, [userId], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json({ message: "Gagal mengambil data booking" });
+    }
+
+    // Transform the result
+    const bookings = result.rows.map((row) => {
+      // Logic status: if payment settlement/capture -> paid
+      let status = row.booking_status;
+      if (
+        row.transactionstatus === "settlement" ||
+        row.transactionstatus === "capture"
+      ) {
+        status = "paid";
+      } else if (
+        row.transactionstatus === "pending"
+      ) {
+        status = "waiting_payment";
+      } else if (
+        row.transactionstatus === "expire" ||
+        row.transactionstatus === "cancel" ||
+        row.transactionstatus === "deny"
+      ) {
+        status = "cancelled";
+      }
+
+      // Construct photo URL
+      let photoUrl = null;
+      if (row.villa_photo) {
+        photoUrl = getS3Url(row.villa_photo);
+      }
+
+      return {
+        payment_id: row.payment_id,
+        bookingid: row.bookingid,
+        orderid: row.orderid,
+        transactionid: row.transactionid,
+        paymenttype: row.paymenttype,
+        grossamount: row.grossamount,
+        transactionstatus: row.transactionstatus,
+        transactiontime: row.transactiontime,
+        rawresponse: row.rawresponse,
+        createdat: row.createdat,
+        token: row.token,
+
+        booking_id: row.booking_id,
+        userid: row.userid,
+        villaid: row.villaid,
+        checkin: row.checkin,
+        checkout: row.checkout,
+        booking_status: status, // Updated status
+        booking_totalamount: row.booking_totalamount,
+
+        villa_name: row.villa_name,
+        villa_location: row.villa_location,
+        villa_photo: photoUrl,
+
+        payment: {
+          orderId: row.orderid,
+          token: row.token,
+          redirectUrl: row.redirecturl,
+        },
+      };
+    });
+
+    return res.json(bookings);
+  });
+};
 function countNights(checkIn, checkOut) {
   const start = new Date(checkIn);
   const end = new Date(checkOut);
@@ -200,11 +318,17 @@ exports.getMyBookings = (req, res) => {
       b.checkin,
       b.checkout,
       b.status AS booking_status,
-      b.totalamount AS booking_totalamount
+      b.totalamount AS booking_totalamount,
+
+      v.name AS villa_name,
+      v.location AS villa_location,
+      (SELECT fileName FROM villa_photos vp WHERE vp.villaId = v.id LIMIT 1) AS villa_photo
 
     FROM payments p
     INNER JOIN bookings b ON p.bookingid = b.id
+    INNER JOIN villas v ON b.villaid = v.id
     WHERE b.userid = $1
+    ORDER BY p.transactiontime DESC
   `;
 
   db.query(query, [userId], (err, result) => {
@@ -215,6 +339,31 @@ exports.getMyBookings = (req, res) => {
 
     // Transform the result to include payment object with redirectUrl from database column
     const bookings = result.rows.map((row) => {
+      // Logic status: if payment settlement/capture -> paid
+      let status = row.booking_status;
+      if (
+        row.transactionstatus === "settlement" ||
+        row.transactionstatus === "capture"
+      ) {
+        status = "paid";
+      } else if (
+        row.transactionstatus === "pending"
+      ) {
+        status = "waiting_payment";
+      } else if (
+        row.transactionstatus === "expire" ||
+        row.transactionstatus === "cancel" ||
+        row.transactionstatus === "deny"
+      ) {
+        status = "cancelled";
+      }
+
+      // Construct photo URL
+      let photoUrl = null;
+      if (row.villa_photo) {
+        photoUrl = getS3Url(row.villa_photo);
+      }
+
       return {
         payment_id: row.payment_id,
         bookingid: row.bookingid,
@@ -233,8 +382,12 @@ exports.getMyBookings = (req, res) => {
         villaid: row.villaid,
         checkin: row.checkin,
         checkout: row.checkout,
-        booking_status: row.booking_status,
+        booking_status: status,
         booking_totalamount: row.booking_totalamount,
+
+        villa_name: row.villa_name,
+        villa_location: row.villa_location,
+        villa_photo: photoUrl,
 
         payment: {
           orderId: row.orderid,

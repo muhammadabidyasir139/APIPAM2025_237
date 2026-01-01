@@ -272,16 +272,29 @@ exports.updateUserStatus = (req, res) => {
   );
 };
 
-// GET REVENUE - Total transactions with status 'paid', filterable by period
+// GET REVENUE - Total transactions with status 'settlement' or 'capture', filterable by period
 exports.getRevenue = (req, res) => {
-  const { period } = req.query; // 'day', 'week', 'month' or undefined for all time
+  const { period, startDate, endDate } = req.query; // 'day', 'week', 'month' or undefined for all time, or custom range
 
   let dateFilter = "";
-  // Note: Standard postgres date functions
-  if (period === "day") {
+  let params = [];
+  let paramCount = 1;
+
+  // Status must be paid (settlement or capture)
+  // We use IN clause directly in query string for simplicity or parameterized if needed,
+  // but since these are constant strings it's safe to hardcode the condition.
+  // The original code used 'paid' which might not match Midtrans statuses directly.
+  const statusCondition = "p.transactionStatus IN ('settlement', 'capture')";
+
+  if (startDate && endDate) {
+    // Custom range
+    dateFilter = `AND DATE(p.transactionTime) >= $${paramCount++} AND DATE(p.transactionTime) <= $${paramCount++}`;
+    params.push(startDate, endDate);
+  } else if (period === "day") {
     dateFilter = "AND DATE(p.transactionTime) = CURRENT_DATE";
   } else if (period === "week") {
-    // Basic approximation across DBs, but for PG:
+    // Current week (starting monday usually, or just last 7 days?)
+    // date_trunc('week', ...) in Postgres starts on Monday by default
     dateFilter = "AND p.transactionTime >= date_trunc('week', CURRENT_DATE)";
   } else if (period === "month") {
     dateFilter = "AND p.transactionTime >= date_trunc('month', CURRENT_DATE)";
@@ -295,10 +308,10 @@ exports.getRevenue = (req, res) => {
       MIN(p.transactionTime) as firstTransaction,
       MAX(p.transactionTime) as lastTransaction
     FROM payments p
-    WHERE p.transactionStatus = 'paid' ${dateFilter}
+    WHERE ${statusCondition} ${dateFilter}
   `;
 
-  db.query(query, [], (err, result) => {
+  db.query(query, params, (err, result) => {
     if (err) {
       console.log(err);
       return res.status(500).json({ message: "Gagal mengambil data revenue" });
@@ -307,9 +320,9 @@ exports.getRevenue = (req, res) => {
     const revenueData = result.rows[0];
     res.json({
       message: "Data revenue berhasil diambil",
-      period: period || "all",
+      period: period || (startDate && endDate ? "custom" : "all"),
       data: {
-        totalTransactions: parseInt(revenueData.totaltransactions) || 0, // PG downcases column aliases typically
+        totalTransactions: parseInt(revenueData.totaltransactions) || 0,
         totalRevenue: parseFloat(revenueData.totalrevenue) || 0,
         averageTransaction: parseFloat(revenueData.averagetransaction) || 0,
         firstTransaction: revenueData.firsttransaction,

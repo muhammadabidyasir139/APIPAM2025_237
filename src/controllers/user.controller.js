@@ -214,3 +214,47 @@ exports.getTransactionHistory = (req, res) => {
     });
   });
 };
+
+// Get transaction detail
+exports.getTransactionDetail = (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params; // transactionId
+
+  const query = `
+    SELECT
+      payments.orderId,
+      payments.transactionId,
+      payments.paymentType,
+      payments.transactionStatus,
+      payments.transactionTime,
+      payments.grossAmount,
+      bookings.checkIn,
+      bookings.checkOut,
+      bookings.id as bookingId,
+      villas.name AS villaName,
+      villas.location AS villaLocation,
+      (SELECT fileName FROM villa_photos vp WHERE vp.villaId = villas.id LIMIT 1) AS villaPhoto
+    FROM payments
+    JOIN bookings ON payments.bookingId = bookings.id
+    JOIN villas ON bookings.villaId = villas.id
+    WHERE bookings.userId = $1 AND payments.transactionId = $2
+  `;
+
+  db.query(query, [userId, id], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res
+        .status(500)
+        .json({ message: "Gagal mengambil detail transaksi" });
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Transaksi tidak ditemukan" });
+    }
+
+    return res.json({
+      message: "Detail transaksi berhasil diambil",
+      transaction: result.rows[0],
+    });
+  });
+};

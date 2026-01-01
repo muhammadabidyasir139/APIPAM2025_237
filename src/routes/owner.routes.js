@@ -11,6 +11,7 @@ const {
   updateVilla,
   deleteVilla,
   getOwnerBookings,
+  getOwnerIncome,
 } = require("../controllers/owner.controller");
 
 // Villas CRUD for customers
@@ -24,6 +25,7 @@ router.post(
 router.get("/villas", verifyJWT, verifyCustomer, getOwnerVillas);
 router.put("/villas/:id", verifyJWT, verifyCustomer, updateVilla);
 router.delete("/villas/:id", verifyJWT, verifyCustomer, deleteVilla);
-router.get("/bookings", verifyJWT, verifyOwner, getOwnerBookings);
+router.get("/bookings", verifyJWT, verifyCustomer, getOwnerBookings);
+router.get("/income", verifyJWT, verifyCustomer, getOwnerIncome);
 
 module.exports = router;

@@ -20,6 +20,7 @@ exports.getAllVillas = (req, res) => {
     if (err)
       return res.status(500).json({ message: "Gagal mengambil data villa" });
 
+    // ubah string "f1.jpg,f2.jpg" -> array URL
     const data = result.rows.map((row) => {
       let photos = [];
       if (row.photos) {
@@ -31,7 +32,11 @@ exports.getAllVillas = (req, res) => {
       };
     });
 
-    res.json(data);
+    res.json({
+      message: "Data villa berhasil diambil",
+      count: data.length,
+      villas: data,
+    });
   });
 };
 
@@ -50,7 +55,13 @@ exports.createVillaByAdmin = async (req, res) => {
   `;
 
   try {
-    const result = await db.query(query, [ownerId, name, location, price, description]);
+    const result = await db.query(query, [
+      ownerId,
+      name,
+      location,
+      price,
+      description,
+    ]);
     const villaId = result.rows[0].id;
 
     if (files.length === 0) {
@@ -80,7 +91,6 @@ exports.createVillaByAdmin = async (req, res) => {
       villaId,
       photos: photoUrls,
     });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Gagal membuat villa" });
@@ -105,7 +115,13 @@ exports.editVilla = async (req, res) => {
   `;
 
   try {
-    const result = await db.query(query, [name, location, price, description, id]);
+    const result = await db.query(query, [
+      name,
+      location,
+      price,
+      description,
+      id,
+    ]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ message: "Villa tidak ditemukan" });
@@ -130,16 +146,15 @@ exports.editVilla = async (req, res) => {
       "SELECT fileName FROM villa_photos WHERE villaId = $1",
       [id]
     );
-    const photos = photosResult.rows.map(row => getS3Url(row.filename));
+    const photos = photosResult.rows.map((row) => getS3Url(row.filename));
 
     res.json({
       message: "Villa berhasil diupdate",
       villa: {
         ...updatedVilla,
-        photos
-      }
+        photos,
+      },
     });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Gagal mengupdate villa" });
@@ -224,7 +239,11 @@ exports.getAllUsers = (req, res) => {
   db.query("SELECT id, name, email, role, status FROM users", (err, result) => {
     if (err) return res.status(500).json({ message: "Gagal mengambil user" });
 
-    res.json(result.rows);
+    res.json({
+      message: "Data user berhasil diambil",
+      count: result.rowCount,
+      users: result.rows,
+    });
   });
 };
 
@@ -324,9 +343,11 @@ exports.getAllTransactions = (req, res) => {
     params.push(endDate);
   }
 
-  // Get total count
-  const countQuery = `
-    SELECT COUNT(*) as total
+  // Get total count and revenue
+  const statsQuery = `
+    SELECT 
+      COUNT(*) as total,
+      COALESCE(SUM(CASE WHEN p.transactionStatus IN ('settlement', 'capture') THEN p.grossAmount ELSE 0 END), 0) as totalRevenue
     FROM payments p
     JOIN bookings b ON p.bookingId = b.id
     JOIN villas v ON b.villaId = v.id
@@ -363,15 +384,16 @@ exports.getAllTransactions = (req, res) => {
 
   params.push(parseInt(limit), parseInt(offset));
 
-  db.query(countQuery, countParams, (err, countResult) => {
+  db.query(statsQuery, countParams, (err, statsResult) => {
     if (err) {
       console.log(err);
       return res
         .status(500)
-        .json({ message: "Gagal mengambil jumlah transaksi" });
+        .json({ message: "Gagal mengambil statistik transaksi" });
     }
 
-    const total = parseInt(countResult.rows[0].total);
+    const total = parseInt(statsResult.rows[0].total);
+    const totalRevenue = parseFloat(statsResult.rows[0].totalrevenue);
 
     db.query(dataQuery, params, (err, result) => {
       if (err) {
@@ -388,6 +410,10 @@ exports.getAllTransactions = (req, res) => {
           limit: parseInt(limit),
           total,
           totalPages: Math.ceil(total / limit),
+        },
+        stats: {
+          totalTransactions: total,
+          totalRevenue,
         },
         transactions: result.rows,
       });

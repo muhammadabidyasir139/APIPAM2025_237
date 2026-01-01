@@ -8,6 +8,7 @@ const {
   updateProfile,
   changePassword,
   getTransactionHistory,
+  getTransactionDetail,
 } = require("../controllers/user.controller");
 
 // Get user profile
@@ -21,5 +22,8 @@ router.put("/change-password", verifyJWT, changePassword);
 
 // Get transaction history
 router.get("/transactions", verifyJWT, getTransactionHistory);
+
+// Get transaction detail
+router.get("/transactions/:id", verifyJWT, getTransactionDetail);
 
 module.exports = router;

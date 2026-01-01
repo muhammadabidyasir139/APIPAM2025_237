@@ -93,7 +93,7 @@ exports.getOwnerVillas = (req, res) => {
   if (userRole === "admin") {
     // Admin can see all villas
     query = `
-      SELECT v.*, GROUP_CONCAT(vp.fileName) AS photos
+      SELECT v.*, string_agg(vp.fileName, ',') AS photos
       FROM villas v
       LEFT JOIN villa_photos vp ON vp.villaId = v.id
       GROUP BY v.id
@@ -103,10 +103,10 @@ exports.getOwnerVillas = (req, res) => {
   } else {
     // Owner/customer can only see their own villas
     query = `
-      SELECT v.*, GROUP_CONCAT(vp.fileName) AS photos
+      SELECT v.*, string_agg(vp.fileName, ',') AS photos
       FROM villas v
       LEFT JOIN villa_photos vp ON vp.villaId = v.id
-      WHERE v.ownerId = ?
+      WHERE v.ownerId = $1
       GROUP BY v.id
       ORDER BY v.id DESC
     `;
@@ -120,7 +120,7 @@ exports.getOwnerVillas = (req, res) => {
     }
 
     // ubah string "f1.jpg,f2.jpg" -> array URL
-    const data = result.map((row) => {
+    const data = result.rows.map((row) => {
       let photos = [];
       if (row.photos) {
         photos = row.photos.split(",").map((file) => getS3Url(file));
@@ -146,10 +146,10 @@ exports.updateVilla = (req, res) => {
   let checkParams;
 
   if (userRole === "admin") {
-    checkQuery = "SELECT status FROM villas WHERE id = ?";
+    checkQuery = "SELECT status FROM villas WHERE id = $1";
     checkParams = [id];
   } else {
-    checkQuery = "SELECT status FROM villas WHERE id = ? AND ownerId = ?";
+    checkQuery = "SELECT status FROM villas WHERE id = $1 AND ownerId = $2";
     checkParams = [id, userId];
   }
 
@@ -157,11 +157,11 @@ exports.updateVilla = (req, res) => {
     if (err)
       return res.status(500).json({ message: "Gagal mengambil data villa" });
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Villa tidak ditemukan" });
     }
 
-    const status = result[0].status;
+    const status = result.rows[0].status;
 
     // Tidak boleh edit approved atau inactive
     if (status === "approved" || status === "inactive") {
@@ -176,16 +176,26 @@ exports.updateVilla = (req, res) => {
       updatedData.status = "pending";
     }
 
-    // Jika pending → edit biasa tanpa mengubah status
+    // Handle partial updates for Postgres
+    // Note: '?' syntax was simple for object update in MySQL driver, but pg driver doesn't support "SET ?"
+    // We need to construct the query dynamically
+    const fields = Object.keys(updatedData);
+    const values = Object.values(updatedData);
+
+    if (fields.length === 0) {
+      return res.status(400).json({ message: "Tidak ada data yang diupdate" });
+    }
+
+    let setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(", ");
     let updateQuery;
-    let updateParams;
+    let updateParams = [...values];
 
     if (userRole === "admin") {
-      updateQuery = "UPDATE villas SET ? WHERE id = ?";
-      updateParams = [updatedData, id];
+      updateQuery = `UPDATE villas SET ${setClause} WHERE id = $${values.length + 1}`;
+      updateParams.push(id);
     } else {
-      updateQuery = "UPDATE villas SET ? WHERE id = ? AND ownerId = ?";
-      updateParams = [updatedData, id, userId];
+      updateQuery = `UPDATE villas SET ${setClause} WHERE id = $${values.length + 1} AND ownerId = $${values.length + 2}`;
+      updateParams.push(id, userId);
     }
 
     db.query(updateQuery, updateParams, (err2) => {
@@ -209,10 +219,10 @@ exports.deleteVilla = (req, res) => {
   let checkParams;
 
   if (userRole === "admin") {
-    checkQuery = "SELECT status FROM villas WHERE id = ?";
+    checkQuery = "SELECT status FROM villas WHERE id = $1";
     checkParams = [id];
   } else {
-    checkQuery = "SELECT status FROM villas WHERE id = ? AND ownerId = ?";
+    checkQuery = "SELECT status FROM villas WHERE id = $1 AND ownerId = $2";
     checkParams = [id, userId];
   }
 
@@ -220,11 +230,11 @@ exports.deleteVilla = (req, res) => {
     if (err)
       return res.status(500).json({ message: "Gagal mengambil data villa" });
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Villa tidak ditemukan" });
     }
 
-    const status = result[0].status;
+    const status = result.rows[0].status;
 
     // Tidak boleh delete jika approved/inactive
     if (status === "approved" || status === "inactive") {
@@ -238,10 +248,10 @@ exports.deleteVilla = (req, res) => {
     let deleteParams;
 
     if (userRole === "admin") {
-      deleteQuery = "DELETE FROM villas WHERE id = ?";
+      deleteQuery = "DELETE FROM villas WHERE id = $1";
       deleteParams = [id];
     } else {
-      deleteQuery = "DELETE FROM villas WHERE id = ? AND ownerId = ?";
+      deleteQuery = "DELETE FROM villas WHERE id = $1 AND ownerId = $2";
       deleteParams = [id, userId];
     }
 
@@ -262,13 +272,43 @@ exports.getOwnerBookings = (req, res) => {
     SELECT bookings.*, villas.name AS villaName
     FROM bookings
     JOIN villas ON villas.id = bookings.villaId
-    WHERE villas.ownerId = ?
+    WHERE villas.ownerId = $1
   `;
 
   db.query(query, [ownerId], (err, result) => {
     if (err)
       return res.status(500).json({ message: "Gagal mengambil data booking" });
 
-    res.json(result);
+    res.json(result.rows);
+  });
+};
+
+// GET OWNER INCOME
+exports.getOwnerIncome = (req, res) => {
+  const ownerId = req.user.id;
+
+  const query = `
+    SELECT
+      COALESCE(SUM(p.grossAmount), 0) as totalIncome,
+      COUNT(p.id) as totalTransactions
+    FROM payments p
+    JOIN bookings b ON p.bookingId = b.id
+    JOIN villas v ON b.villaId = v.id
+    WHERE v.ownerId = $1
+    AND p.transactionStatus IN ('settlement', 'capture')
+  `;
+
+  db.query(query, [ownerId], (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.status(500).json({ message: "Gagal mengambil data pendapatan" });
+    }
+
+    const data = result.rows[0];
+    res.json({
+      message: "Data pendapatan berhasil diambil",
+      totalIncome: parseFloat(data.totalincome),
+      totalTransactions: parseInt(data.totaltransactions)
+    });
   });
 };

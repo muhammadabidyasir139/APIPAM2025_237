@@ -52,5 +52,6 @@ router.put("/users/:id/status", verifyJWT, adminOnly, updateUserStatus);
 
 // Transaction Management
 router.get("/transactions", verifyJWT, adminOnly, getAllTransactions);
+router.get("/revenue", verifyJWT, adminOnly, getRevenue);
 
 module.exports = router;

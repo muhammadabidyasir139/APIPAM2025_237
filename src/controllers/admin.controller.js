@@ -297,7 +297,7 @@ exports.getRevenue = (req, res) => {
     // date_trunc('week', ...) in Postgres starts on Monday by default
     dateFilter = "AND p.transactiontime >= date_trunc('week', CURRENT_DATE)";
   } else if (period === "month") {
-    dateFilter = "AND p.transactiontime >= date_trunc('month', CURRENT_DATE)";
+    dateFilter = "AND p.transactiontime >= date_trunc('year', CURRENT_DATE)";
   }
 
   const query = `
@@ -311,10 +311,10 @@ exports.getRevenue = (req, res) => {
     WHERE ${statusCondition} ${dateFilter}
   `;
 
-  // Additional query for weekly breakdown if period is 'week'
-  let weeklyQuery = "";
+  // Additional query for breakdown if period is 'week' or 'month'
+  let breakdownQuery = "";
   if (period === "week") {
-    weeklyQuery = `
+    breakdownQuery = `
       SELECT
         TRIM(TO_CHAR(p.transactiontime, 'Day')) as day_name,
         EXTRACT(ISODOW FROM p.transactiontime) as day_of_week,
@@ -323,6 +323,17 @@ exports.getRevenue = (req, res) => {
       WHERE ${statusCondition} ${dateFilter}
       GROUP BY day_name, day_of_week
       ORDER BY day_of_week ASC
+    `;
+  } else if (period === "month") {
+    breakdownQuery = `
+      SELECT
+        TRIM(TO_CHAR(p.transactiontime, 'Month')) as month_name,
+        EXTRACT(MONTH FROM p.transactiontime) as month_num,
+        SUM(p.grossAmount) as monthly_revenue
+      FROM payments p
+      WHERE ${statusCondition} ${dateFilter}
+      GROUP BY month_name, month_num
+      ORDER BY month_num ASC
     `;
   }
 
@@ -345,34 +356,63 @@ exports.getRevenue = (req, res) => {
       },
     };
 
-    if (period === "week") {
-      db.query(weeklyQuery, params, (err2, result2) => {
+    if (period === "week" || period === "month") {
+      db.query(breakdownQuery, params, (err2, result2) => {
         if (err2) {
           console.log(err2);
           // Don't fail the whole request, just return main stats
           return res.json(responseData);
         }
 
-        // Initialize all days with 0
-        const days = [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ];
+        if (period === "week") {
+          // Initialize all days with 0
+          const days = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+          ];
 
-        const weeklyBreakdown = days.map((day) => {
-          const found = result2.rows.find((row) => row.day_name === day);
-          return {
-            day: day,
-            revenue: found ? parseFloat(found.daily_revenue) : 0,
-          };
-        });
+          const weeklyBreakdown = days.map((day) => {
+            const found = result2.rows.find((row) => row.day_name === day);
+            return {
+              day: day,
+              revenue: found ? parseFloat(found.daily_revenue) : 0,
+            };
+          });
 
-        responseData.data.weeklyBreakdown = weeklyBreakdown;
+          responseData.data.weeklyBreakdown = weeklyBreakdown;
+        } else if (period === "month") {
+          // Initialize all months with 0
+          const months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+          ];
+
+          const monthlyBreakdown = months.map((month) => {
+            const found = result2.rows.find((row) => row.month_name === month);
+            return {
+              month: month,
+              revenue: found ? parseFloat(found.monthly_revenue) : 0,
+            };
+          });
+
+          responseData.data.monthlyBreakdown = monthlyBreakdown;
+        }
+
         res.json(responseData);
       });
     } else {

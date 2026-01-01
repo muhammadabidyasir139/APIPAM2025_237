@@ -311,6 +311,21 @@ exports.getRevenue = (req, res) => {
     WHERE ${statusCondition} ${dateFilter}
   `;
 
+  // Additional query for weekly breakdown if period is 'week'
+  let weeklyQuery = "";
+  if (period === "week") {
+    weeklyQuery = `
+      SELECT
+        TRIM(TO_CHAR(p.transactiontime, 'Day')) as day_name,
+        EXTRACT(ISODOW FROM p.transactiontime) as day_of_week,
+        SUM(p.grossAmount) as daily_revenue
+      FROM payments p
+      WHERE ${statusCondition} ${dateFilter}
+      GROUP BY day_name, day_of_week
+      ORDER BY day_of_week ASC
+    `;
+  }
+
   db.query(query, params, (err, result) => {
     if (err) {
       console.log(err);
@@ -318,7 +333,7 @@ exports.getRevenue = (req, res) => {
     }
 
     const revenueData = result.rows[0];
-    res.json({
+    const responseData = {
       message: "Data revenue berhasil diambil",
       period: period || (startDate && endDate ? "custom" : "all"),
       data: {
@@ -328,7 +343,41 @@ exports.getRevenue = (req, res) => {
         firstTransaction: revenueData.firsttransaction,
         lastTransaction: revenueData.lasttransaction,
       },
-    });
+    };
+
+    if (period === "week") {
+      db.query(weeklyQuery, params, (err2, result2) => {
+        if (err2) {
+          console.log(err2);
+          // Don't fail the whole request, just return main stats
+          return res.json(responseData);
+        }
+
+        // Initialize all days with 0
+        const days = [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ];
+
+        const weeklyBreakdown = days.map((day) => {
+          const found = result2.rows.find((row) => row.day_name === day);
+          return {
+            day: day,
+            revenue: found ? parseFloat(found.daily_revenue) : 0,
+          };
+        });
+
+        responseData.data.weeklyBreakdown = weeklyBreakdown;
+        res.json(responseData);
+      });
+    } else {
+      res.json(responseData);
+    }
   });
 };
 

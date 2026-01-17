@@ -5,8 +5,16 @@ const jwt = require("jsonwebtoken");
 exports.register = (req, res) => {
   const { name, email, password, role } = req.body;
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: "Harap isi semua field" });
+  if (!email) {
+    return res.status(400).json({ message: "Email wajib diisi" });
+  }
+
+  if (!password) {
+    return res.status(400).json({ message: "Password wajib diisi" });
+  }
+
+  if (!name) {
+    return res.status(400).json({ message: "Nama wajib diisi" });
   }
 
   db.query("SELECT * FROM users WHERE email = $1", [email], (err, result) => {
@@ -15,7 +23,7 @@ exports.register = (req, res) => {
       return res.status(500).json({ message: "Database error" });
     }
     if (result.rows.length > 0) {
-      return res.status(400).json({ message: "Email sudah terdaftar" });
+      return res.status(400).json({ message: "User sudah terdaftar" });
     }
 
     bcrypt.hash(password, 10, (err, hashedPassword) => {
@@ -50,13 +58,23 @@ exports.register = (req, res) => {
 exports.login = (req, res) => {
   const { email, password } = req.body;
 
+  if (!email) {
+    return res.status(400).json({ message: "Email wajib diisi" });
+  }
+
+  if (!password) {
+    return res.status(400).json({ message: "Password wajib diisi" });
+  }
+
   db.query("SELECT * FROM users WHERE email = $1", [email], (err, result) => {
     if (err) {
       console.log(err);
       return res.status(500).json({ message: "Database error" });
     }
     if (result.rows.length === 0) {
-      return res.status(400).json({ message: "Email tidak ditemukan" });
+      return res
+        .status(400)
+        .json({ message: "Email atau password salah" });
     }
 
     const user = result.rows[0];
@@ -67,7 +85,9 @@ exports.login = (req, res) => {
       }
 
       if (!passwordMatch) {
-        return res.status(400).json({ message: "Password salah" });
+        return res
+          .status(400)
+          .json({ message: "Email atau password salah" });
       }
       const token = jwt.sign(
         { id: user.id, role: user.role },
